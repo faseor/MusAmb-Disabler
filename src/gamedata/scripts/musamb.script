@@ -1,0 +1,496 @@
+--------------------------------------------------------------------------------
+-- Vars and Constants
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+local exclusive_obj = nil
+local ambient_controller = nil
+local set_musamb = nil
+local get_musamb = nil
+local get_miliseconds = _G.time_global
+local clamp = _G.clamp
+local is_in_mainmenu = true
+local is_ambient_music_console_execution_hooked = false
+local is_combat_music_ambient_music_control_hooked = false
+local is_ui_options_start_lighting_ui_hooked = false
+local error_msg = "CRITICAL ERROR -> MUSAMB: " ..
+	"Exclusive permissions is released and this object cannot using for changing volume of ambient's music.\n " ..
+	"TIPS: Check execution's logic of your mod. Do not share to another scripts this exclusive object."
+
+
+--------------------------------------------------------------------------------
+-- Public interface
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+event_name = "on_ambient_music_volume_change"
+
+function get()
+	local result
+	if ambient_controller then
+		result = ambient_controller:get()
+	else
+		result = get_musamb()
+	end
+	if	exclusive_obj then
+		local tmp = exclusive_obj("get", ambient_controller:get_volumes())
+		if type(tmp) == "number" and tmp >= 0 and tmp <= 1 then
+			result = tmp
+		end
+	end
+	return result
+end
+
+function fade_next()
+	if exclusive_obj then
+		exclusive_obj("fade", ambient_controller:get_volumes())
+	else
+		ambient_controller:fade_next()
+	end
+end
+
+function mute(suppress_event)
+	if exclusive_obj then
+		exclusive_obj("mute", suppress_event, ambient_controller:get_volumes())
+	else
+		ambient_controller:mute(suppress_event)
+	end
+end
+
+function unmute(suppress_event)
+	if exclusive_obj then
+		exclusive_obj("unmute", suppress_event, ambient_controller:get_volumes())
+	else
+		ambient_controller:unmute(suppress_event)
+	end
+end
+
+function to_default(suppress_event)
+	if exclusive_obj then
+		exclusive_obj("to_default", suppress_event, ambient_controller:get_volumes())
+	else
+		ambient_controller:to_default(suppress_event)
+	end
+end
+
+function set_to(v, suppress_event)
+	if exclusive_obj then
+		exclusive_obj("set_to", v, suppress_event, ambient_controller:get_volumes())
+	else
+		ambient_controller:set_to(v, suppress_event)
+	end
+end
+
+function is_acquired()
+	return exclusive_obj ~= nil
+end
+
+function acquire_exclusive_music_ambient_control(obj)
+	if type(obj) ~= "function" then
+		abort("CRITICAL ERROR -> MUSAMB: exclusive object must be a function")
+		return nil
+	end
+	if is_acquired() then
+		return nil
+	end
+	exclusive_obj = obj
+	return ExclusiveMusamb()
+end
+
+function trans_log_volume(linear_val, is_48db)
+	if type(linear_val) == "number" and linear_val >= 0 and linear_val <= 1 then
+		if linear_val == 0 then return 0.0 end
+		return math.pow(10.0, (
+		-(is_48db and 48 or 60.0) * (1.0 - linear_val)
+		) / 20.0)
+	end
+	return nil
+end
+
+function trans_linear_volume(log_val, is_48db)
+	if type(log_val) == "number" and log_val >= 0 and log_val <= 1 then
+		if log_val == 0 then return 0.0 end
+		local min_db = -(is_48db and 48.0 or 60)
+		local db = 20.0 * math.log10(log_val)
+		if db < min_db then db = min_db end
+		return 1.0 - (db / min_db)
+	end
+	return nil
+end
+
+
+--------------------------------------------------------------------------------
+class "ExclusiveMusamb"
+--[[----------------------------------------------------------------------------
+Exclusive controller for ambient's music
+--]]----------------------------------------------------------------------------
+function ExclusiveMusamb:__init()
+	self.correct_state = true
+end
+
+function ExclusiveMusamb:release_acquire()
+	self.correct_state = false
+	exclusive_obj = nil
+end
+
+function ExclusiveMusamb:update()
+	ambient_controller:update()
+end
+
+function ExclusiveMusamb:fade_next()
+	if not self.correct_state then abort(error_msg) end
+	ambient_controller:fade_next()
+end
+
+function ExclusiveMusamb:get()
+	if not self.correct_state then abort(error_msg) end
+	return ambient_controller:get()
+end
+
+function ExclusiveMusamb:mute(...)
+	if not self.correct_state then abort(error_msg) end
+	ambient_controller:mute(...)
+end
+
+function ExclusiveMusamb:unmute(...)
+	if not self.correct_state then abort(error_msg) end
+	ambient_controller:unmute(...)
+end
+
+function ExclusiveMusamb:to_default(...)
+	if not self.correct_state then abort(error_msg) end
+	ambient_controller:to_default(...)
+end
+
+function ExclusiveMusamb:set_to(...)
+	if not self.correct_state then abort(error_msg) end
+	ambient_controller:set_to(...)
+end
+
+
+--------------------------------------------------------------------------------
+-- Mod workflow
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+local function main_menu_on_init()
+	if is_combat_music_ambient_music_control_hooked then
+		is_in_mainmenu = true
+		ambient_controller:main_menu_case("main_menu_init", ambient_controller:get_volumes())
+	end
+end
+
+local function main_menu_on_quit()
+	if is_combat_music_ambient_music_control_hooked then
+		is_in_mainmenu = false
+		ambient_controller:main_menu_case("main_menu_quit", ambient_controller:get_volumes())
+	end
+end
+
+local function actor_on_net_destroy()
+	ambient_controller:to_default()
+end
+
+local function hook_ambient_music_console_execution()
+	if is_ambient_music_console_execution_hooked then return end
+	local orig_console = _G.exec_console_cmd
+	set_musamb = function(v)
+		orig_console("snd_volume_music " .. v)
+	end
+	get_musamb = function()
+		return get_console_cmd(2,"snd_volume_music")
+	end
+	_G.exec_console_cmd = function(param)
+		if type(param) == "string" and starts_with(param, "snd_volume_music") then
+			local v = tonumber(str_explode(param, " ")[2])
+			if is_in_mainmenu then
+				ambient_controller:main_menu_case("main_menu_set", v, ambient_controller:get_volumes())
+			else
+				set_to(v)
+			end
+		else
+			orig_console(param)
+		end
+	end
+	is_ambient_music_console_execution_hooked = true
+end
+
+local function hook_xrs_dyn_music()
+	if is_combat_music_ambient_music_control_hooked then return end
+	if isDynamicMusicModByOrleon() then
+		local obj = xrs_dyn_music.CCombatMusic
+		local cm__process_fade_ambient = obj.process_fade_ambient
+		obj.main_menu_on_init = function(self)
+			self.flags.menu_is_opened = true
+		end
+		obj.main_menu_on_quit = function(self)
+			self.flags.menu_is_opened = false
+		end
+		obj.process_fade_ambient = function(self, f_to)
+			self.p_amb_vol = f_to
+			cm__process_fade_ambient(self, f_to)
+			to_default(true)
+			fade_next()
+			set_to(f_to)
+			return true
+		end
+		is_combat_music_ambient_music_control_hooked = true
+	else
+		local obj = xrs_dyn_music
+		if
+			type(obj.start_theme) == "function" and
+			type(obj.finish_theme) == "function"
+		then
+			obj.main_menu_on = function()
+			end
+			obj.main_menu_off = function()
+				obj.ambient_vol = get_console_cmd(2,"snd_volume_music")
+				if (IsDynamicMusic()) then
+					obj.activate_feature()
+				else
+					obj.deactivate_feature()
+				end
+			end
+			obj.fade_ambient = function()
+				obj.prev_fade_time = time_global()
+				obj.FadeTo_ambient = clamp(obj.FadeTo_ambient, 0, obj.ambient_vol)
+				obj.m_ambient_vol = obj.FadeTo_ambient
+				fade_next()
+				set_to(obj.FadeTo_ambient)
+			end
+			is_combat_music_ambient_music_control_hooked = true
+		end
+	end
+end
+
+local function hook_vanilla_ui_options()
+	--[[ Patch not work
+	if is_ui_options_start_lighting_ui_hooked then return end
+	if ui_options and type(ui_options.start_lighting_ui) == "function" then
+		local f__start_lighting_ui = ui_options.start_lighting_ui
+		ui_options.start_lighting_ui = function(...)
+			f__start_lighting_ui(...)
+			SendScriptCallback("main_menu_on_quit", ui_main_menu.main_menu)
+			printf("Musamb %s %", "send_event", "main_menu_on_quit")
+		end
+		is_ui_options_start_lighting_ui_hooked = true
+	end
+	--]]
+end
+
+function on_game_start()
+	RegisterScriptCallback("main_menu_on_init", main_menu_on_init)
+	RegisterScriptCallback("main_menu_on_quit", main_menu_on_quit)
+	RegisterScriptCallback("actor_on_net_destroy", actor_on_net_destroy)
+	hook_ambient_music_console_execution()
+	hook_xrs_dyn_music()
+	hook_vanilla_ui_options()
+	AddScriptCallback(event_name)
+	if not ambient_controller then
+		ambient_controller = AmbientMusicController()
+	end
+end
+
+function on_game_end()
+	UnregisterScriptCallback("main_menu_on_init", main_menu_on_init)
+	UnregisterScriptCallback("main_menu_on_quit", main_menu_on_quit)
+	UnregisterScriptCallback("actor_on_net_destroy", actor_on_net_destroy)
+	ambient_controller.to_default()
+end
+
+--------------------------------------------------------------------------------
+class "AmbientMusicController"
+--[[----------------------------------------------------------------------------
+Mod core
+--]]----------------------------------------------------------------------------
+function AmbientMusicController:__init()
+	self.default_volume = get_musamb()
+	self.mute_volume = 0
+	self.mainmenu_volume = 0
+	self.memory_volume = nil
+	self.is_fade_next = false
+	self.volume_fading = 0
+	self.volume_fading_from = 0
+	self.eventless_fading = false
+	self.fade_start_time = 0
+	self.fade_duration = 5000
+	self.fade_resolution = 100
+	self.is_fading = false
+	self.is_in_mainmenu = false
+end
+
+function AmbientMusicController:update()
+	self.default_volume = get_musamb()
+	self.mute_volume = 0
+end
+
+function AmbientMusicController:get_volumes()
+	return self.default_volume, self.mute_volume, self.memory_volume
+end
+
+function AmbientMusicController:get()
+	return get_musamb()
+end
+
+function AmbientMusicController:fade_next()
+	self.is_fade_next = true
+end
+
+function AmbientMusicController:mute(suppress_event)
+	if self.mute_volume == get_musamb() then return end
+	if self.is_fade_next then
+		self:fade_prepare(self.mute_volume, suppress_event)
+	else
+		if self.is_fading then self:fade_finish(true) end
+		set_musamb(self.mute_volume)
+		if suppress_event then return end
+		SendScriptCallback(event_name, self.mute_volume)
+	end
+end
+
+function AmbientMusicController:unmute(suppress_event)
+	if self.default_volume == get_musamb() then return end
+	if self.is_fade_next then
+		self:fade_prepare(self.default_volume, suppress_event)
+	else
+		if self.is_fading then self:fade_finish(true) end
+		set_musamb(self.default_volume)
+		if suppress_event then return end
+		SendScriptCallback(event_name, self.default_volume)
+	end
+end
+
+function AmbientMusicController:memento(another_volume)
+	if self.memory_volume then return end
+	if
+		type(another_volume) == "number" and
+		another_volume >= 0 and another_volume <= 1
+	then
+		self.memory_volume = another_volume
+	else
+		if self.is_fading then
+			self.memory_volume = self.volume_fading
+		else
+			self.memory_volume = get_musamb()
+		end
+	end
+end
+
+function AmbientMusicController:restore(suppress_event)
+	if not self.memory_volume then return end
+	local tmp = self.memory_volume
+	self.memory_volume = nil
+	if tmp == get_musamb() then return end
+	if self.is_fade_next then
+		self:fade_prepare(tmp, suppress_event)
+	else
+		if self.is_fading then self:fade_finish(true) end
+		set_musamb(tmp)
+		if suppress_event then return end
+		SendScriptCallback(event_name, tmp)
+	end
+end
+
+function AmbientMusicController:to_default(suppress_event)
+	if self.default_volume == get_musamb() then return end
+	if self.is_fade_next then
+		self:fade_prepare(self.default_volume, suppress_event)
+	else
+		if self.is_fading then self:fade_finish(true) end
+		set_musamb(self.default_volume)
+		if suppress_event then return end
+		SendScriptCallback(event_name, self.default_volume)
+	end
+end
+
+function AmbientMusicController:set_to(v, suppress_event)
+	if type(v) ~= "number" or not (v >= 0 and v <= 1) then return end
+	if v == get_musamb() then return end
+	if self.is_fade_next then
+		self:fade_prepare(v, suppress_event)
+	else
+		if self.is_fading then self:fade_finish(true) end
+		set_musamb(v)
+		if suppress_event then return end
+		SendScriptCallback(event_name, v)
+	end
+end
+
+function AmbientMusicController:main_menu_case(event, ...)
+	if event == "main_menu_init" then
+		self.is_in_mainmenu = true
+		self:to_default()
+	elseif event == "main_menu_set" and self.is_in_mainmenu then
+		local tmp, _ = ...
+		self.default_volume = tmp
+		self:to_default()
+	elseif event == "main_menu_quit" then
+		self.is_in_mainmenu = false
+	end
+end
+
+function AmbientMusicController:fade_prepare(v, s)
+	self.is_fade_next = false
+	if v == get_musamb() then
+		self:fade_finish(true)
+		return
+	end
+	self.eventless_fading = s
+	self.volume_fading = v
+	self.volume_fading_from = get_musamb()
+	self.fade_start_time = get_miliseconds()
+	if self.is_fading then
+		if self.fade_duration < self.fade_resolution then
+			set_musamb(self.volume_fading)
+			self:fade_finish(true)
+		end
+	else
+		CreateTimeEvent("musamb", "FadeAmbient", self.fade_resolution / 1000, self.fade_start, self)
+	end
+end
+
+function AmbientMusicController:fade_start()
+	if self.is_in_mainmenu then return false end
+	local v = self.volume_fading
+	local c = (get_miliseconds() - self.fade_start_time) / self.fade_duration
+	c = clamp(c, 0, 1)
+	v = self.volume_fading_from + (c * (self.volume_fading - self.volume_fading_from))
+	set_musamb(clamp(v, 0, 1))
+	if c == 0 or c == 1 then
+		return self:fade_finish()
+	end
+	return false
+end
+
+function AmbientMusicController:fade_finish(is_immediate)
+	if not self.eventless_fading then
+		SendScriptCallback(event_name, self.volume_fading)
+	end
+	self.eventless_fading = false
+	self.volume_fading = 0
+	self.volume_fading_from = 0
+	self.fade_start_time = 0
+	self.is_fading = false
+	if is_immediate then
+		RemoveTimeEvent("musamb", "FadeAmbient")
+	end
+	return true
+end
+
+
+--------------------------------------------------------------------------------
+-- Utils
+--[[----------------------------------------------------------------------------
+function isDynamicMusicModByOrleon()
+	check signature of mod
+	https://www.moddb.com/mods/stalker-anomaly/addons/enhanced-dynamic-combat-music
+--]]----------------------------------------------------------------------------
+function isDynamicMusicModByOrleon()
+	if xrs_dyn_music_mcm then
+		local settings = xrs_dyn_music_mcm.on_mcm_load()
+		if settings["id"] == "CombatMusic" and xrs_dyn_music.CCombatMusic then
+			if settings["version"] then
+				return false
+			end
+			return true
+		end
+	end
+	return false
+end

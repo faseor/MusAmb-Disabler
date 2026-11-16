@@ -1,0 +1,448 @@
+
+local defaults = {
+	["enable"] = true,
+	["acquire_zones"] = true,
+	["acquire_weathers"] = true,
+	["acquire_surge"] = true,
+	["acquire_psistorm"] = true,
+	["acquire_redmoon"] = false,
+	["acquire_crawlingmist"] = false
+}
+local zones = {}
+local weathers_all = {}
+local weathers_levels = {}
+local is_weathers_for_levels = false
+local is_modpack = false
+local modpack_text = "ui_mcm_moozambient_modpack"
+local is_settings_read = false
+local ini_cfg = ini_file("scripts\\moozambient_settings.ltx")
+local is_bindrestrictor_hooked = false
+local is_dynmusic_hooked = false
+local is_levelweathers_hooked = false
+local is_redmoon_hooked = false
+local is_crawlingmist_hooked = false
+
+function cfg(key)
+	if key == "acquire_combatmusic" then
+		return IsDynamicMusic()
+	end if key == "silent_zones" then
+		local tmp = zones[level.name()]
+		if tmp then
+			for name, _ in pairs(tmp) do
+				printf("zones %s => %s", level.name(), name)
+			end
+		end
+		return tmp and tmp or {}
+	end if key == "silent_weathers" then
+		local is_tmp = ui_mcm and ui_mcm.get("moozambient/weather_levels")
+		if type(is_tmp) == "nil" then is_tmp = is_weathers_for_levels end
+		if is_tmp then
+			local tmp = weathers_levels[level.name()]
+			return tmp and tmp or {}
+		end
+		return weathers_all
+	end if key == "acquire_zones" and not zones[level.name()] then
+		return false
+	end if key == "acquire_redmoon" and not blood_moon_mcm then
+		return false
+	end if key == "acquire_crawlingmist" and not crawling_mist_mcm then
+		return false
+	end if key == "acquire_weathers" and is_weathers_for_levels then
+		local tmp = weathers_levels[level.name()]
+		if not tmp then return false end
+	end
+	local value
+	if ui_mcm then
+		if is_modpack then
+			value = defaults[key]
+		else
+			value = ui_mcm.get("moozambient/" .. key)
+			if type(value) == "nil" then value = defaults[key] end
+		end
+	else
+		value = defaults[key]
+	end
+	return value
+end
+
+local function read_settings()
+	if is_settings_read then return end
+	local section = ""
+	if ini_cfg then
+		section = "general"
+		if ini_cfg:section_exist(section) then
+			local tmp = {}
+			for name, _ in pairs(defaults) do
+				tmp[name] = ini_cfg:r_bool_ex(section, name)
+			end
+			for name, value in pairs(tmp) do
+				if defaults[name] and value then
+					defaults[name] = value
+				end
+			end
+			is_weathers_for_levels = ini_cfg:r_bool_ex(section, "type_weathers")
+			is_weathers_for_levels = (is_weathers_for_levels and is_weathers_for_levels == "level")
+			is_modpack = ini_cfg:r_bool_ex(section, "modpack_control")
+			is_modpack = (type(is_modpack) ~= "nil" and is_modpack)
+			if is_modpack then
+				modpack_text = ini_cfg:r_string_ex(section, "modpack_text")
+				if type(modpack_text) ~= "string" then
+					modpack_text = "ui_mcm_moozambient_modpack"
+				end
+			end
+		end
+		section = "levels_have_silent_zones"
+		if ini_cfg:section_exist(section) then
+			local tmp = {}
+			local count = ini_cfg:line_count(section)
+			for i = 0, count - 1 do
+				local _, level = ini_cfg:r_line_ex(section, i, "", "")
+				local level_section = level .. "_zones"
+				if ini_cfg:section_exist(level_section) then
+					local zones_count = ini_cfg:line_count(level_section)
+					for j = 0, zones_count - 1 do
+						local _, zone = ini_cfg:r_line_ex(level_section, j, "", "")
+						if not tmp[level] then
+							tmp[level] = {}
+						end
+						tmp[level][zone] = true
+					end
+				end
+			end
+			zones = tmp
+		end
+		section = "silent_weathers"
+		if ini_cfg:section_exist(section) then
+			local tmp = {}
+			local count = ini_cfg:line_count(section)
+			for i = 0, count - 1 do
+				local _, key, value = ini_cfg:r_line_ex(section, i, "", "")
+				tmp[key] = true
+			end
+			weathers_all = tmp
+		end
+		section = "levels_have_silent_weathers"
+		if ini_cfg:section_exist(section) then
+			local tmp = {}
+			local count = ini_cfg:line_count(section)
+			for i = 0, count - 1 do
+				local _, level = ini_cfg:r_line_ex(section, i, "", "")
+				local level_section = level .. "_weathers"
+				if ini_cfg:section_exist(level_section) then
+					local weathers_count = ini_cfg:line_count(level_section)
+					for j = 0, weathers_count - 1 do
+						local _, weather = ini_cfg:r_line_ex(level_section, j, "", "")
+						if not tmp[level] then
+							tmp[level] = {}
+						end
+						tmp[level][weather] = true
+					end
+				end
+			end
+			weathers_levels = tmp
+		end
+	end
+	is_settings_read = true
+end
+
+local function hook_bind_restrictor()
+	if is_bindrestrictor_hooked then return end
+	local obj = bind_restrictor and bind_restrictor.restrictor_binder
+	if not obj then return end
+	if bind_restrictor.is_callbacks_support then
+		is_bindrestrictor_hooked = true
+		return
+	end
+	local rb__on_enter = obj.on_enter
+	local rb__on_exit = obj.on_exit
+	if type(rb__on_enter) ~= "function" then return end
+	if type(rb__on_exit) ~= "function" then return end
+	obj.on_enter = function(self, zone, obj)
+		rb__on_enter(self, zone, obj)
+		if (obj and obj:id() == AC_ID) then
+			SendScriptCallback("on_actor_zone_enter", zone)
+		end
+	end
+	obj.on_exit = function(self, zone, obj)
+		rb__on_exit(self, zone, obj)
+		if (obj and obj:id() == AC_ID) then
+			SendScriptCallback("on_actor_zone_exit", zone)
+		end
+	end
+	AddScriptCallback("on_actor_zone_enter")
+	AddScriptCallback("on_actor_zone_exit")
+	bind_restrictor.is_callbacks_support = true
+	is_bindrestrictor_hooked = true
+end
+
+local function hook_xrs_dyn_music()
+	if is_dynmusic_hooked then return end
+	if not xrs_dyn_music then return end
+	if xrs_dyn_music.is_callbacks_support then
+		is_dynmusic_hooked = true
+		return
+	end
+	if musamb.isDynamicMusicModByOrleon() then
+		local obj = xrs_dyn_music.CCombatMusic
+		local cm__ChangeMusicVolume = obj.ChangeMusicVolume
+		local cm__ChangeAmbientVolume = obj.ChangeAmbientVolume
+		obj.ChangeMusicVolume = function(self, v, ...)
+			cm__ChangeMusicVolume(self, v, ...)
+			if v == 0 then
+				SendScriptCallback("on_combat_music", "finish", ...)
+			else
+				SendScriptCallback("on_combat_music", "start", ...)
+			end
+		end
+		obj.ChangeAmbientVolume = function(self, f_to)
+			self.flags.ambient_is_faiding = false
+			self.p_amb_vol = f_to
+		end
+		AddScriptCallback("on_combat_music")
+		xrs_dyn_music.is_callbacks_support = true
+		is_dynmusic_hooked = true
+	else
+		local obj = xrs_dyn_music
+		if
+			type(obj.start_theme) == "function" and
+			type(obj.finish_theme) == "function"
+		then
+			local dm__start_theme = obj.start_theme
+			local dm__finish_theme = obj.finish_theme
+			obj.start_theme = function(...)
+				dm__start_theme(...)
+				musamb.to_default(true)
+				SendScriptCallback("on_combat_music", "start", ...)
+			end
+			obj.finish_theme = function(...)
+				dm__finish_theme(...)
+				SendScriptCallback("on_combat_music", "finish", ...)
+			end
+			obj.ambient_is_fading = function()
+				obj.m_ambient_vol = obj.FadeTo_ambient
+				return false
+			end
+			AddScriptCallback("on_combat_music")
+			xrs_dyn_music.is_callbacks_support = true
+			is_dynmusic_hooked = true
+		end
+	end
+end
+
+local function hook_level_weathers()
+	if is_levelweathers_hooked then return end
+	local obj = level_weathers and level_weathers.WeatherManager
+	if not obj then return end
+	if level_weathers.is_callbacks_support then
+		is_levelweathers_hooked = true
+		return
+	end
+	local wm__select_weather = obj.select_weather
+	if type(wm__select_weather) ~= "function" then return end
+	obj.select_weather = function(self, ...)
+		wm__select_weather(self, ...)
+		SendScriptCallback("on_weather_change", ...)
+	end
+	AddScriptCallback("on_weather_change")
+	level_weathers.is_callbacks_support = true
+	is_levelweathers_hooked = true
+end
+
+local function hook_redmoon()
+	if is_redmoon_hooked then return end
+	-- check mod signature
+	local obj = blood_moon_manager and blood_moon_manager.CBloodMoonManager
+	if not (obj and blood_moon_mcm) then return end
+	if blood_moon_manager.is_callbacks_support then
+		is_redmoon_hooked = true
+		return
+	end
+	local t = blood_moon_mcm.on_mcm_load()
+	if t["version"] then return end
+	-- end check signature
+	local f__start = obj.start
+	local f__skip_blood_moon = obj.skip_blood_moon
+	local f__finish = obj.finish
+	local f__update = obj.update
+	if
+		type(f__start) == "function" and
+		type(f__skip_blood_moon) == "function" and
+		type(f__finish) == "function" and
+		type(f__update) == "function"
+	then
+		obj.start = function(self, ...)
+			f__start(self, ...)
+			local flags = {allow = true}
+			SendScriptCallback("on_before_blood_moon", flags)
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "blood_moon_start")
+		end
+		obj.skip_blood_moon = function(self, ...)
+			f__skip_blood_moon(self, ...)
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "blood_moon")
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "blood_moon_end")
+		end
+		obj.finish = function(self, ...)
+			f__finish(self, ...)
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "blood_moon")
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "blood_moon_end")
+		end
+		--[[
+		obj.update = function(self, ...)
+			if not self.first_update then
+				f__update(self, ...)
+				local flags = {allow = true}
+				SendScriptCallback("on_before_blood_moon",flags)
+			else
+				f__update(self, ...)
+			end
+		end
+		--]]
+	end
+	AddScriptCallback("on_before_blood_moon")
+	blood_moon_manager.is_callbacks_support = true
+	defaults["acquire_redmoon"] = true
+	is_redmoon_hooked = true
+end
+
+local function hook_crawlingmist()
+	if is_crawlingmist_hooked then return end
+	-- check mod signature
+	local obj = crawling_mist_manager and crawling_mist_manager.CBloodMoonManager
+	if not (obj and crawling_mist_mcm) then return end
+	if crawling_mist_manager.is_callbacks_support then
+		is_crawlingmist_hooked = true
+		return
+	end
+	local t = crawling_mist_mcm.on_mcm_load()
+	if t["version"] then return end
+	-- end check signature
+	local f__start = obj.start
+	local f__skip_cmist = obj.skip_cmist
+	local f__finish = obj.finish
+	local f__update = obj.update
+	if
+		type(f__start) == "function" and
+		type(f__skip_crawling_mist) == "function" and
+		type(f__finish) == "function" and
+		type(f__update) == "function"
+	then
+		obj.start = function(self, ...)
+			f__start(self, ...)
+			local flags = {allow = true}
+			SendScriptCallback("on_before_cmist", flags)
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "cmist_start")
+		end
+		obj.skip_cmist = function(self, ...)
+			f__skip_cmist(self, ...)
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "cmist")
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "cmist_end")
+		end
+		obj.finish = function(self, ...)
+			f__finish(self, ...)
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "cmist")
+			SendScriptCallback("actor_on_interaction", "anomalies", nil, "cmist_end")
+		end
+		--[[
+		obj.update = function(self, ...)
+			if not self.first_update then
+				f__update(self, ...)
+				local flags = {allow = true}
+				SendScriptCallback("on_before_cmist",flags)
+			else
+				f__update(self, ...)
+			end
+		end
+		--]]
+	end
+	AddScriptCallback("on_before_cmist")
+	crawling_mist_manager.is_callbacks_support = true
+	defaults["acquire_crawlingmist"] = true
+	is_crawlingmist_hooked = true
+end
+
+function on_game_load()
+	read_settings()
+	moozambient_main.initialize()
+end
+
+function on_option_change()
+end
+
+function on_mcm_load()
+	read_settings()
+	local function is_1() return not is_modpack end
+	local function is_2() return not not blood_moon_mcm end
+	local function is_3() return not not crawling_mist_mcm end
+	return {
+		id = "moozambient",
+		sh = true,
+		version = "0.9.b",
+		precondition = { is_1 },
+		output = modpack_text,
+		gr = {
+			-- section main
+			{id="banner",
+				type="slide", link="ui\\moozambient\\banner.dds", size={512, 50},
+			text=""},
+			{id="enable",
+				type="check", val=1, def=defaults["enable"],
+			text="enable"},
+			{id="divider", type="line"},
+			-- section 1
+			{id="paragraph1",
+				type="title", align="l",
+			text="ui_mcm_moozambient_paragraph1"},
+			{id="acquire_zones",
+				type="check", val=1, def=defaults["acquire_zones"],
+			text="acquire_zones"},
+			{id="acquire_weathers",
+				type="check", val=1, def=defaults["acquire_weathers"],
+			text="acquire_weathers"},
+			{id="acquire_surge",
+				type="check", val=1, def=defaults["acquire_surge"],
+			text="acquire_surge"},
+			{id="acquire_psistorm",
+				type="check", val=1, def=defaults["acquire_psistorm"],
+			text="acquire_psistorm"},
+			{id="acquire_redmoon", precondition={is_2}, output="ui_mcm_moozambient_mod_not_found",
+				type="check", val=1, def=defaults["acquire_redmoon"],
+			text="acquire_redmoon"},
+			{id="acquire_crawlingmist", precondition={is_3}, output="ui_mcm_moozambient_mod_not_found",
+				type="check", val=1, def=defaults["acquire_crawlingmist"],
+			text="acquire_crawlingmist"},
+			{id="divider", type="line"},
+			-- section 2
+			{id="paragraph2",
+				type="title", align="l",
+			text="ui_mcm_moozambient_paragraph2"},
+			{id="weather_levels",
+				type="check", val=1, def=is_weathers_for_levels,
+			text="weather_levels"}
+		}
+	}
+end
+
+function on_game_start()
+	RegisterScriptCallback("on_game_load", on_game_load)
+	RegisterScriptCallback("on_option_change", on_option_change)
+	RegisterScriptCallback("on_option_change", moozambient_main.on_option_change)
+	RegisterScriptCallback("actor_on_first_update", moozambient_main.actor_on_first_update)
+	RegisterScriptCallback("actor_on_net_destroy", moozambient_main.actor_on_net_destroy)
+	RegisterScriptCallback("main_menu_on_init", moozambient_main.main_menu_on_init)
+	RegisterScriptCallback("main_menu_on_quit", moozambient_main.main_menu_on_quit)
+	hook_bind_restrictor()
+	hook_xrs_dyn_music()
+	hook_level_weathers()
+	hook_redmoon()
+	hook_crawlingmist()
+end
+
+function on_game_end()
+	UnregisterScriptCallback("on_game_load", on_game_load)
+	UnregisterScriptCallback("on_option_change", on_option_change)
+	UnregisterScriptCallback("on_option_change", moozambient_main.on_option_change)
+	UnregisterScriptCallback("actor_on_first_update", moozambient_main.actor_on_first_update)
+	UnregisterScriptCallback("actor_on_net_destroy", moozambient_main.actor_on_net_destroy)
+	UnregisterScriptCallback("main_menu_on_init", moozambient_main.main_menu_on_init)
+	UnregisterScriptCallback("main_menu_on_quit", moozambient_main.main_menu_on_quit)
+end

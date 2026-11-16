@@ -1,0 +1,511 @@
+--------------------------------------------------------------------------------
+-- Vars and Constants
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+local flags = {
+	["is_enable"] = false,
+	["is_silentzones"] = false,
+	["is_weatherchange"] = false,
+	["is_emission"] = false,
+	["is_psistorm"] = false,
+	["is_rmoon"] = false,
+	["is_cmist"] = false,
+	["is_dynmusic"] = false,
+	["is_mainmenu"] = false
+}
+local silent_zones = {}
+local silent_weathers = {}
+local cur_weather = ""
+local cur_dynmusic = ""
+local cur_menu = ""
+local is_blowout = false
+local cur_state = nil
+local state_bump, state_inside, state_outside
+
+
+--------------------------------------------------------------------------------
+-- Utils
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+local function pda_tip(str)
+	news_manager.send_tip(db.actor, str)
+end
+
+local function to_state(new_state)
+	if cur_state then
+		if not new_state then
+			cur_state:out()
+			cur_state = nil
+		elseif cur_state == new_state then
+			cur_state:reentry()
+		else
+			cur_state:out()
+			cur_state = new_state
+			cur_state:entry()
+		end
+	elseif new_state then
+		cur_state = new_state
+		cur_state:entry()
+	end
+end
+
+local function is_inside_silent_zone()
+	for name, _ in pairs(silent_zones) do
+		if db.actor_inside_zones[name] then
+			return true
+		end
+	end
+	return false
+end
+
+
+--------------------------------------------------------------------------------
+class "State"
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+function State:__init()
+	self.name = "State"
+end
+
+function State:__eq(s1, s2)
+	if s2 == nil then return false end
+	return s1.name == s2.name
+end
+
+function State:entry()
+	if is_inside_silent_zone() then
+		to_state(state_inside)
+	else
+		to_state(state_outside)
+	end
+end
+
+function State:out()
+end
+
+function State:reentry()
+end
+
+function State:onZoneEnter()
+end
+
+function State:onZoneExit()
+end
+
+function State:onWeatherChange()
+end
+
+function State:onDynMusic()
+end
+
+function State:onMenu()
+end
+
+
+--------------------------------------------------------------------------------
+class "StateInside" (State)
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+function StateInside:__init() super()
+	self.name = "StateInside"
+	self.zones = {}
+	self.num_zones = 0
+	self.amb = nil
+	self.last_event = {}
+	self.last_event.name = nil
+	self.last_event.params = {}
+	self.eventener = function(event, ...)
+		self.last_event.name = event
+		self.last_event.params = {...}
+	end
+end
+
+function StateInside:entry()
+	for name, _ in pairs(silent_zones) do
+		if not self.zones[name] and db.actor_inside_zones[name] then
+			self.zones[name] = true
+			self.num_zones = self.num_zones + 1
+		end
+	end
+	if self.num_zones <= 0 then
+		to_state(state_outside)
+		return
+	end
+	if not musamb.is_acquired() then
+		self.amb = musamb.acquire_exclusive_music_ambient_control(self.eventener)
+		self.amb:fade_next()
+		self.amb:mute()
+	end
+end
+
+function StateInside:reentry()
+	self.zones = {}
+	self.num_zones = 0
+	for name, _ in pairs(silent_zones) do
+		if not self.zones[name] and db.actor_inside_zones[name] then
+			self.zones[name] = true
+			self.num_zones = self.num_zones + 1
+		end
+	end
+	if self.num_zones <= 0 then
+		to_state(state_outside)
+		return
+	end
+end
+
+function StateInside:out()
+	self.zones = {}
+	self.num_zones = 0
+	if self.amb then self.amb:release_acquire() end
+	self.amb = nil
+	if self.last_event.name then
+		musamb[self.last_event.name](unpack(self.last_event.params))
+		self.last_event.name = nil
+		self.last_event.params = {}
+	end
+end
+
+function StateInside:onZoneEnter(zone)
+	local name = zone:name()
+	if not self.zones[name] and silent_zones[name] then
+		self.zones[name] = true
+		self.num_zones = self.num_zones + 1
+	end
+end
+
+function StateInside:onZoneExit(zone)
+	local name = zone:name()
+	if self.zones[name] then
+		self.zones[name] = nil
+		self.num_zones = self.num_zones - 1
+	end
+	if self.num_zones <= 0 then
+		to_state(state_outside)
+		return
+	end
+end
+
+function StateInside:onMenu()
+	if cur_menu == "quit" then
+		if self.amb then self.amb:mute() end
+	end
+end
+
+
+--------------------------------------------------------------------------------
+class "StateOutside" (State)
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+function StateOutside:__init() super()
+	self.name = "StateOutside"
+end
+
+function StateOutside:entry()
+	if is_inside_silent_zone() then
+		to_state(state_inside)
+		return
+	end
+	if cur_dynmusic == "start" then
+		musamb.fade_next()
+		musamb.mute()
+		return
+	end
+	if silent_weathers[cur_weather] then
+		musamb.fade_next()
+		musamb.mute()
+		return
+	end
+	musamb.fade_next()
+	musamb.unmute()
+end
+
+function StateOutside:reentry()
+	if is_inside_silent_zone() then
+		to_state(state_inside)
+	end
+	if cur_dynmusic == "start" then
+		musamb.mute()
+	elseif silent_weathers[cur_weather] then
+		musamb.mute()
+	else
+		musamb.unmute()
+	end
+end
+
+function StateOutside:onZoneEnter(zone)
+	if is_inside_silent_zone() then
+		to_state(state_inside)
+		return
+	end
+end
+
+function StateOutside:onWeatherChange()
+	if silent_weathers[cur_weather] then
+		musamb.fade_next()
+		musamb.mute()
+	elseif cur_dynmusic ~= "start" then
+		musamb.fade_next()
+		musamb.unmute()
+	end
+end
+
+function StateOutside:onDynMusic()
+	if cur_dynmusic == "start" then
+		musamb.fade_next()
+		musamb.mute()
+	elseif not silent_weathers[cur_weather] then
+		musamb.fade_next()
+		musamb.unmute()
+	end
+end
+
+function StateOutside:onMenu()
+	if cur_menu == "quit" then
+		if cur_dynmusic == "start" then
+			musamb.mute()
+		elseif silent_weathers[cur_weather] then
+			musamb.mute()
+		end
+	end
+end
+
+
+--------------------------------------------------------------------------------
+-- Events listeners
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+local function on_ZoneEnter(zone)
+	cur_state:onZoneEnter(zone)
+end
+
+local function on_ZoneExit(zone)
+	cur_state:onZoneExit(zone)
+end
+
+
+local function on_WeatherChange()
+	if is_blowout then return end
+	cur_weather = level_weathers.get_weather_manager():get_curr_weather()
+	cur_state:onWeatherChange()
+end
+
+local function on_ActorInteraction(interaction, _, interaction_stage)
+	if interaction ~= "anomalies" then return end
+	if interaction_stage == "emission_start" then
+		if is_blowout then return end
+		is_blowout = true
+		cur_weather = "emission"
+		cur_state:onWeatherChange()
+	elseif interaction_stage == "psi_storm_start" then
+		if is_blowout then return end
+		is_blowout = true
+		cur_weather = "psistorm"
+		cur_state:onWeatherChange()
+	elseif interaction_stage == "blood_moon_start" then
+		if is_blowout then return end
+		is_blowout = true
+		cur_weather = "rmoon"
+		cur_state:onWeatherChange()
+	elseif interaction_stage == "cmist_start" then
+		if is_blowout then return end
+		is_blowout = true
+		cur_weather = "cmist"
+		cur_state:onWeatherChange()
+	elseif interaction_stage == "emission_end" then
+		is_blowout = false
+		UnregisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+		on_WeatherChange()
+	elseif interaction_stage == "psi_storm_end" then
+		is_blowout = false
+		UnregisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+		on_WeatherChange()
+	elseif interaction_stage == "blood_moon_end" then
+		is_blowout = false
+		UnregisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+		on_WeatherChange()
+	elseif interaction_stage == "cmist_end" then
+		is_blowout = false
+		UnregisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+		on_WeatherChange()
+	end
+end
+
+local function on_BeforeSurge()
+	RegisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+end
+
+local function on_BeforePsystorm()
+	RegisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+end
+
+local function on_BeforeRMoon()
+	RegisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+end
+
+local function on_BeforeCMist()
+	RegisterScriptCallback("actor_on_interaction", on_ActorInteraction)
+end
+
+local function on_CombatMusic(music_state)
+	cur_dynmusic = music_state
+	cur_state:onDynMusic()
+end
+
+local function on_MainMenu(menu_state)
+	cur_menu = menu_state
+	cur_state:onMenu()
+end
+
+
+--------------------------------------------------------------------------------
+-- Mod workflow
+--[[----------------------------------------------------------------------------
+--]]----------------------------------------------------------------------------
+local function register_events()
+	if moozambient_mcm.cfg("acquire_combatmusic") then
+		RegisterScriptCallback("on_combat_music", on_CombatMusic)
+		flags.is_dynmusic = true
+	end
+	if flags.is_enable then return end
+	if not moozambient_mcm.cfg("enable") then return end
+	if moozambient_mcm.cfg("acquire_zones") then
+		RegisterScriptCallback("on_actor_zone_enter", on_ZoneEnter)
+		RegisterScriptCallback("on_actor_zone_exit", on_ZoneExit)
+		flags.is_silentzones = true
+	end
+	if moozambient_mcm.cfg("acquire_weathers") then
+		RegisterScriptCallback("on_weather_change", on_WeatherChange)
+		flags.is_weatherchange = true
+	end
+	if moozambient_mcm.cfg("acquire_surge") then
+		RegisterScriptCallback("on_before_surge", on_BeforeSurge)
+		flags.is_emission = true
+	end
+	if moozambient_mcm.cfg("acquire_psistorm") then
+		RegisterScriptCallback("on_before_psi_storm", on_BeforePsystorm)
+		flags.is_psistorm = true
+	end
+	if moozambient_mcm.cfg("acquire_redmoon") then
+		RegisterScriptCallback("on_before_blood_moon", on_BeforeRMoon)
+		flags.is_rmoon = true
+	end
+	if moozambient_mcm.cfg("acquire_crawlingmist") then
+		RegisterScriptCallback("on_before_cmist", on_BeforeCMist)
+		flags.is_cmist = true
+	end
+	flags.is_enable = true
+end
+
+local function unregister_events()
+	if flags.is_dynmusic then
+		UnregisterScriptCallback("on_combat_music", on_CombatMusic)
+		flags.is_dynmusic = false
+	end
+	if not flags.is_enable then return end
+	if flags.is_silentzones then
+		UnregisterScriptCallback("on_actor_zone_enter", on_ZoneEnter)
+		UnregisterScriptCallback("on_actor_zone_exit", on_ZoneExit)
+		flags.is_silentzones = false
+	end
+	if flags.is_weatherchange then
+		UnregisterScriptCallback("on_weather_change", on_WeatherChange)
+		flags.is_weatherchange = false
+	end
+	if flags.is_emission then
+		UnregisterScriptCallback("on_before_surge", on_BeforeSurge)
+		flags.is_emission = false
+	end
+	if flags.is_psistorm then
+		UnregisterScriptCallback("on_before_psi_storm", on_BeforePsystorm)
+		flags.is_psistorm = false
+	end
+	if flags.is_rmoon then
+		UnregisterScriptCallback("on_before_blood_moon", on_BeforeRMoon)
+		flags.is_rmoon = false
+	end
+	if flags.is_cmist then
+		UnregisterScriptCallback("on_before_cmist", on_BeforeCMist)
+		flags.is_cmist = false
+	end
+	flags.is_enable = false
+end
+
+local function update_settings(is_cleanup)
+	if is_cleanup then
+		silent_zones = {}
+		cur_weather = ""
+		cur_dynmusic = ""
+		silent_zones = {}
+		silent_weathers = {}
+	else
+		local tmp = {}
+		if moozambient_mcm.cfg("acquire_zones") then
+			tmp = moozambient_mcm.cfg("silent_zones")
+		end
+		silent_zones = tmp
+		tmp = {}
+		if moozambient_mcm.cfg("acquire_weathers") then
+			tmp = moozambient_mcm.cfg("silent_weathers")
+		end
+		if moozambient_mcm.cfg("acquire_surge") then
+			tmp["emission"] = true
+		end
+		if moozambient_mcm.cfg("acquire_psistorm") then
+			tmp["psistorm"] = true
+		end
+		if moozambient_mcm.cfg("acquire_redmoon") then
+			tmp["rmoon"] = true
+		end
+		if moozambient_mcm.cfg("acquire_crawlingmist") then
+			tmp["cmist"] = true
+		end
+		silent_weathers = tmp
+	end
+end
+
+function actor_on_first_update()
+	-- easy way to get current weather
+	cur_weather = level_weathers.WeatherManager:get_curr_weather()
+	-- hard way (level_weathers script bug avoid)
+	if not cur_weather then
+		cur_weather = ""
+		CreateTimeEvent(
+			"moozambient", "cur_weather_bug_avoid", 1,
+			function()
+				SendScriptCallback("on_weather_change")
+				return true
+			end
+		)
+	end
+	update_settings()
+	register_events()
+	to_state(state_bump)
+end
+
+function actor_on_net_destroy()
+	unregister_events()
+	update_settings(true)
+	to_state(state_bump)
+	musamb.to_default()
+end
+
+function on_option_change()
+	unregister_events()
+	update_settings()
+	register_events()
+	to_state(cur_state)
+end
+
+function main_menu_on_init()
+	on_MainMenu("init")
+end
+
+function main_menu_on_quit()
+	on_MainMenu("quit")
+end
+
+function initialize()
+	if not state_bump then state_bump = State() end
+	if not state_inside then state_inside = StateInside() end
+	if not state_outside then state_outside = StateOutside() end
+end
