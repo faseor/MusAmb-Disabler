@@ -13,9 +13,9 @@ local weathers_all = {}
 local weathers_levels = {}
 local is_weathers_for_levels = false
 local is_modpack = false
-local modpack_text = "ui_mcm_moozambient_modpack"
+local modpack_text = "ui_mcm_musamb_disabler_modpack"
 local is_settings_read = false
-local ini_cfg = ini_file("scripts\\moozambient_settings.ltx")
+local ini_cfg = ini_file("scripts\\musamb_disabler_settings.ltx")
 local is_bindrestrictor_hooked = false
 local is_dynmusic_hooked = false
 local is_levelweathers_hooked = false
@@ -34,7 +34,7 @@ function cfg(key)
 		end
 		return tmp and tmp or {}
 	end if key == "silent_weathers" then
-		local is_tmp = ui_mcm and ui_mcm.get("moozambient/weather_levels")
+		local is_tmp = ui_mcm and ui_mcm.get("musamb_disabler/weather_levels")
 		if type(is_tmp) == "nil" then is_tmp = is_weathers_for_levels end
 		if is_tmp then
 			local tmp = weathers_levels[level.name()]
@@ -56,7 +56,7 @@ function cfg(key)
 		if is_modpack then
 			value = defaults[key]
 		else
-			value = ui_mcm.get("moozambient/" .. key)
+			value = ui_mcm.get("musamb_disabler/" .. key)
 			if type(value) == "nil" then value = defaults[key] end
 		end
 	else
@@ -87,7 +87,7 @@ local function read_settings()
 			if is_modpack then
 				modpack_text = ini_cfg:r_string_ex(section, "modpack_text")
 				if type(modpack_text) ~= "string" then
-					modpack_text = "ui_mcm_moozambient_modpack"
+					modpack_text = "ui_mcm_musamb_disabler_modpack"
 				end
 			end
 		end
@@ -362,7 +362,7 @@ end
 
 function on_game_load()
 	read_settings()
-	moozambient_main.initialize()
+	musamb_disabler_main.initialize()
 end
 
 function on_option_change()
@@ -374,7 +374,7 @@ function on_mcm_load()
 	local function is_2() return not not blood_moon_mcm end
 	local function is_3() return not not crawling_mist_mcm end
 	return {
-		id = "moozambient",
+		id = "musamb_disabler",
 		sh = true,
 		version = "0.9.b",
 		precondition = { is_1 },
@@ -382,7 +382,7 @@ function on_mcm_load()
 		gr = {
 			-- section main
 			{id="banner",
-				type="slide", link="ui\\moozambient\\banner.dds", size={512, 50},
+				type="slide", link="ui\\musamb_disabler\\banner.dds", size={512, 50},
 			text=""},
 			{id="enable",
 				type="check", val=1, def=defaults["enable"],
@@ -391,7 +391,7 @@ function on_mcm_load()
 			-- section 1
 			{id="paragraph1",
 				type="title", align="l",
-			text="ui_mcm_moozambient_paragraph1"},
+			text="ui_mcm_musamb_disabler_paragraph1"},
 			{id="acquire_zones",
 				type="check", val=1, def=defaults["acquire_zones"],
 			text="acquire_zones"},
@@ -404,17 +404,17 @@ function on_mcm_load()
 			{id="acquire_psistorm",
 				type="check", val=1, def=defaults["acquire_psistorm"],
 			text="acquire_psistorm"},
-			{id="acquire_redmoon", precondition={is_2}, output="ui_mcm_moozambient_mod_not_found",
+			{id="acquire_redmoon", precondition={is_2}, output="ui_mcm_musamb_disabler_mod_not_found",
 				type="check", val=1, def=defaults["acquire_redmoon"],
 			text="acquire_redmoon"},
-			{id="acquire_crawlingmist", precondition={is_3}, output="ui_mcm_moozambient_mod_not_found",
+			{id="acquire_crawlingmist", precondition={is_3}, output="ui_mcm_musamb_disabler_mod_not_found",
 				type="check", val=1, def=defaults["acquire_crawlingmist"],
 			text="acquire_crawlingmist"},
 			{id="divider", type="line"},
 			-- section 2
 			{id="paragraph2",
 				type="title", align="l",
-			text="ui_mcm_moozambient_paragraph2"},
+			text="ui_mcm_musamb_disabler_paragraph2"},
 			{id="weather_levels",
 				type="check", val=1, def=is_weathers_for_levels,
 			text="weather_levels"}
@@ -425,11 +425,11 @@ end
 function on_game_start()
 	RegisterScriptCallback("on_game_load", on_game_load)
 	RegisterScriptCallback("on_option_change", on_option_change)
-	RegisterScriptCallback("on_option_change", moozambient_main.on_option_change)
-	RegisterScriptCallback("actor_on_first_update", moozambient_main.actor_on_first_update)
-	RegisterScriptCallback("actor_on_net_destroy", moozambient_main.actor_on_net_destroy)
-	RegisterScriptCallback("main_menu_on_init", moozambient_main.main_menu_on_init)
-	RegisterScriptCallback("main_menu_on_quit", moozambient_main.main_menu_on_quit)
+	RegisterScriptCallback("on_option_change", musamb_disabler_main.on_option_change)
+	RegisterScriptCallback("actor_on_first_update", musamb_disabler_main.actor_on_first_update)
+	RegisterScriptCallback("actor_on_net_destroy", musamb_disabler_main.actor_on_net_destroy)
+	RegisterScriptCallback("main_menu_on_init", musamb_disabler_main.main_menu_on_init)
+	RegisterScriptCallback("main_menu_on_quit", musamb_disabler_main.main_menu_on_quit)
 	hook_bind_restrictor()
 	hook_xrs_dyn_music()
 	hook_level_weathers()
@@ -440,9 +440,9 @@ end
 function on_game_end()
 	UnregisterScriptCallback("on_game_load", on_game_load)
 	UnregisterScriptCallback("on_option_change", on_option_change)
-	UnregisterScriptCallback("on_option_change", moozambient_main.on_option_change)
-	UnregisterScriptCallback("actor_on_first_update", moozambient_main.actor_on_first_update)
-	UnregisterScriptCallback("actor_on_net_destroy", moozambient_main.actor_on_net_destroy)
-	UnregisterScriptCallback("main_menu_on_init", moozambient_main.main_menu_on_init)
-	UnregisterScriptCallback("main_menu_on_quit", moozambient_main.main_menu_on_quit)
+	UnregisterScriptCallback("on_option_change", musamb_disabler_main.on_option_change)
+	UnregisterScriptCallback("actor_on_first_update", musamb_disabler_main.actor_on_first_update)
+	UnregisterScriptCallback("actor_on_net_destroy", musamb_disabler_main.actor_on_net_destroy)
+	UnregisterScriptCallback("main_menu_on_init", musamb_disabler_main.main_menu_on_init)
+	UnregisterScriptCallback("main_menu_on_quit", musamb_disabler_main.main_menu_on_quit)
 end

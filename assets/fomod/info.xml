@@ -1,0 +1,7 @@
+<fomod>
+	<Name>MusAmbients Disabler</Name>
+	<Author>faseor</Author>
+	<Version>1.0.0-beta</Version>
+	<Description>Disables background music when entering faction territories and re-enables it afterward. Also supports emissions, weather, and the Crawling Mist and Bloodmoon mods.
+	</Description>
+</fomod>

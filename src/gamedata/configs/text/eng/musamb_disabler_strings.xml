@@ -1,48 +1,48 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <string_table>
-	<string id="ui_mcm_menu_moozambient">
+	<string id="ui_mcm_menu_musamb_disabler">
 		<text>Disable Ambient Music</text>
 	</string>
-	<string id="ui_mcm_moozambient_enable">
+	<string id="ui_mcm_musamb_disabler_enable">
 		<text>Turn me on</text>
 	</string>
-	<string id="ui_mcm_moozambient_enable_desc">
+	<string id="ui_mcm_musamb_disabler_enable_desc">
 		<text>If enabled, the mod will automatically control the ambient music volume
 		when you enter faction base areas,
 		when the weather changes,
 		when an emission occurs, etc.</text>
 	</string>
-	<string id="ui_mcm_moozambient_paragraph1">
-		<text>Control ambient volume when an event occurs.</text>
+	<string id="ui_mcm_musamb_disabler_paragraph1">
+		<text>Control ambient volume when an event occurs:</text>
 	</string>
-	<string id="ui_mcm_moozambient_acquire_zones">
+	<string id="ui_mcm_musamb_disabler_acquire_zones">
 		<text>Entrance to «quiet» zones</text>
 	</string>
-	<string id="ui_mcm_moozambient_acquire_weathers">
+	<string id="ui_mcm_musamb_disabler_acquire_weathers">
 		<text>Change in the weather</text>
 	</string>
-	<string id="ui_mcm_moozambient_acquire_surge">
+	<string id="ui_mcm_musamb_disabler_acquire_surge">
 		<text>Blowout</text>
 	</string>
-	<string id="ui_mcm_moozambient_acquire_psistorm">
+	<string id="ui_mcm_musamb_disabler_acquire_psistorm">
 		<text>Psy Storm</text>
 	</string>
-	<string id="ui_mcm_moozambient_acquire_redmoon">
+	<string id="ui_mcm_musamb_disabler_acquire_redmoon">
 		<text>Red moon</text>
 	</string>
-	<string id="ui_mcm_moozambient_acquire_crawlingmist">
+	<string id="ui_mcm_musamb_disabler_acquire_crawlingmist">
 		<text>Crawling mist</text>
 	</string>
-	<string id="ui_mcm_moozambient_paragraph2">
+	<string id="ui_mcm_musamb_disabler_paragraph2">
 		<text>Special settings</text>
 	</string>
-	<string id="ui_mcm_moozambient_weather_levels">
+	<string id="ui_mcm_musamb_disabler_weather_levels">
 		<text>Independent weather control disabler for each location</text>
 	</string>
-	<string id="ui_mcm_moozambient_mod_not_found">
+	<string id="ui_mcm_musamb_disabler_mod_not_found">
 		<text>Mod not found</text>
 	</string>
-	<string id="ui_mcm_moozambient_modpack">
+	<string id="ui_mcm_musamb_disabler_modpack">
 		<text>All settings are controlled by the modpack.</text>
 	</string>
 </string_table>

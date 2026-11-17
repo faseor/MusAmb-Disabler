@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+	<string id="ui_mcm_menu_musamb_disabler">
+		<text>Вырубалка Эмбиента</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_enable">
+		<text>Включи меня</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_enable_desc">
+		<text>Если включено, мод будет автоматически отключать и включать обратно музыкальный эмбиент:
+		Когда вы входите на территорию группировки
+		Когда меняется погода
+		Когда происходит выброс
+		и т.д.</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_paragraph1">
+		<text>Контролировать эмбиент при наступлении следущих событий:</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_acquire_zones">
+		<text>Вход в "тихие" зоны</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_acquire_weathers">
+		<text>Смена погоды</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_acquire_surge">
+		<text>Выброс</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_acquire_psistorm">
+		<text>Пси-шторм</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_acquire_redmoon">
+		<text>Red moon</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_acquire_crawlingmist">
+		<text>Crawling mist</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_paragraph2">
+		<text>Особые настройки</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_weather_levels">
+		<text>Контроль эмбиента при погоде для каждой локации</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_mod_not_found">
+		<text>Мод не найден</text>
+	</string>
+	<string id="ui_mcm_musamb_disabler_modpack">
+		<text>Все настройки контролируются модпаком</text>
+	</string>
+</string_table>

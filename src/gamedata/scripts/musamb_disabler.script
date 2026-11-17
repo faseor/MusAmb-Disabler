@@ -275,22 +275,26 @@ end
 --[[----------------------------------------------------------------------------
 --]]----------------------------------------------------------------------------
 local function on_ZoneEnter(zone)
+	if not cur_state then return end
 	cur_state:onZoneEnter(zone)
 end
 
 local function on_ZoneExit(zone)
+	if not cur_state then return end
 	cur_state:onZoneExit(zone)
 end
 
 
 local function on_WeatherChange()
 	if is_blowout then return end
+	if not cur_state then return end
 	cur_weather = level_weathers.get_weather_manager():get_curr_weather()
 	cur_state:onWeatherChange()
 end
 
 local function on_ActorInteraction(interaction, _, interaction_stage)
 	if interaction ~= "anomalies" then return end
+	if not cur_state then return end
 	if interaction_stage == "emission_start" then
 		if is_blowout then return end
 		is_blowout = true
@@ -347,11 +351,13 @@ local function on_BeforeCMist()
 end
 
 local function on_CombatMusic(music_state)
+	if not cur_state then return end
 	cur_dynmusic = music_state
 	cur_state:onDynMusic()
 end
 
 local function on_MainMenu(menu_state)
+	if not cur_state then return end
 	cur_menu = menu_state
 	cur_state:onMenu()
 end
@@ -470,7 +476,7 @@ function actor_on_first_update()
 	if not cur_weather then
 		cur_weather = ""
 		CreateTimeEvent(
-			"moozambient", "cur_weather_bug_avoid", 1,
+			"musamb_disabler", "cur_weather_bug_avoid", 1,
 			function()
 				SendScriptCallback("on_weather_change")
 				return true
