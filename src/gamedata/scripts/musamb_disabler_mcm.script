@@ -362,7 +362,7 @@ end
 
 function on_game_load()
 	read_settings()
-	musamb_disabler_main.initialize()
+	musamb_disabler.initialize()
 end
 
 function on_option_change()

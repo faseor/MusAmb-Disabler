@@ -368,34 +368,34 @@ end
 --[[----------------------------------------------------------------------------
 --]]----------------------------------------------------------------------------
 local function register_events()
-	if moozambient_mcm.cfg("acquire_combatmusic") then
+	if musamb_disabler_mcm.cfg("acquire_combatmusic") then
 		RegisterScriptCallback("on_combat_music", on_CombatMusic)
 		flags.is_dynmusic = true
 	end
 	if flags.is_enable then return end
-	if not moozambient_mcm.cfg("enable") then return end
-	if moozambient_mcm.cfg("acquire_zones") then
+	if not musamb_disabler_mcm.cfg("enable") then return end
+	if musamb_disabler_mcm.cfg("acquire_zones") then
 		RegisterScriptCallback("on_actor_zone_enter", on_ZoneEnter)
 		RegisterScriptCallback("on_actor_zone_exit", on_ZoneExit)
 		flags.is_silentzones = true
 	end
-	if moozambient_mcm.cfg("acquire_weathers") then
+	if musamb_disabler_mcm.cfg("acquire_weathers") then
 		RegisterScriptCallback("on_weather_change", on_WeatherChange)
 		flags.is_weatherchange = true
 	end
-	if moozambient_mcm.cfg("acquire_surge") then
+	if musamb_disabler_mcm.cfg("acquire_surge") then
 		RegisterScriptCallback("on_before_surge", on_BeforeSurge)
 		flags.is_emission = true
 	end
-	if moozambient_mcm.cfg("acquire_psistorm") then
+	if musamb_disabler_mcm.cfg("acquire_psistorm") then
 		RegisterScriptCallback("on_before_psi_storm", on_BeforePsystorm)
 		flags.is_psistorm = true
 	end
-	if moozambient_mcm.cfg("acquire_redmoon") then
+	if musamb_disabler_mcm.cfg("acquire_redmoon") then
 		RegisterScriptCallback("on_before_blood_moon", on_BeforeRMoon)
 		flags.is_rmoon = true
 	end
-	if moozambient_mcm.cfg("acquire_crawlingmist") then
+	if musamb_disabler_mcm.cfg("acquire_crawlingmist") then
 		RegisterScriptCallback("on_before_cmist", on_BeforeCMist)
 		flags.is_cmist = true
 	end
@@ -445,24 +445,24 @@ local function update_settings(is_cleanup)
 		silent_weathers = {}
 	else
 		local tmp = {}
-		if moozambient_mcm.cfg("acquire_zones") then
-			tmp = moozambient_mcm.cfg("silent_zones")
+		if musamb_disabler_mcm.cfg("acquire_zones") then
+			tmp = musamb_disabler_mcm.cfg("silent_zones")
 		end
 		silent_zones = tmp
 		tmp = {}
-		if moozambient_mcm.cfg("acquire_weathers") then
-			tmp = moozambient_mcm.cfg("silent_weathers")
+		if musamb_disabler_mcm.cfg("acquire_weathers") then
+			tmp = musamb_disabler_mcm.cfg("silent_weathers")
 		end
-		if moozambient_mcm.cfg("acquire_surge") then
+		if musamb_disabler_mcm.cfg("acquire_surge") then
 			tmp["emission"] = true
 		end
-		if moozambient_mcm.cfg("acquire_psistorm") then
+		if musamb_disabler_mcm.cfg("acquire_psistorm") then
 			tmp["psistorm"] = true
 		end
-		if moozambient_mcm.cfg("acquire_redmoon") then
+		if musamb_disabler_mcm.cfg("acquire_redmoon") then
 			tmp["rmoon"] = true
 		end
-		if moozambient_mcm.cfg("acquire_crawlingmist") then
+		if musamb_disabler_mcm.cfg("acquire_crawlingmist") then
 			tmp["cmist"] = true
 		end
 		silent_weathers = tmp
