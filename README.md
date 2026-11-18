@@ -26,6 +26,10 @@ It is fully compatible with the following mods:
 
 + [RE:D Moon](https://www.moddb.com/mods/stalker-anomaly/addons/red-moon)
 
+# BUILDING
+
+The build process requires Python to be installed. It is recommended to use the latest version (3.x.x). To start the build, run the `build.py` script.
+
 # SUPPORT
 
 ![BANNER](.README/splash.png)
