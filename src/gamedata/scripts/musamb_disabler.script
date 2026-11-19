@@ -441,9 +441,11 @@ local function update_settings(is_cleanup)
 		silent_zones = {}
 		cur_weather = ""
 		cur_dynmusic = ""
-		silent_zones = {}
 		silent_weathers = {}
 	else
+		if not IsDynamicMusic() and cur_dynmusic == "start" then
+			cur_dynmusic = ""
+		end
 		local tmp = {}
 		if musamb_disabler_mcm.cfg("acquire_zones") then
 			tmp = musamb_disabler_mcm.cfg("silent_zones")
