@@ -408,6 +408,12 @@ local function register_events()
 		RegisterScriptCallback("on_before_cmist", on_BeforeCMist)
 		flags.is_cmist = true
 	end
+	is_blowout = is_blowout and (
+		flags.is_emission or
+		flags.is_psistorm or
+		flags.is_rmoon or
+		flags.is_cmist
+	)
 	flags.is_enable = true
 end
 
