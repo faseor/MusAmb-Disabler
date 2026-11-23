@@ -42,7 +42,7 @@ def collect_files():
 	shutil.copytree(src_gamedata, BUILD_DIR  / "gamedata")
 	# Remove files matching *.bkp.*
 	for item in BUILD_DIR.rglob("*"):
-		if item.is_file() and ".bkp." in item.name:
+		if item.is_file() and ".bkp" in item.name:
 			item.unlink()
 
 
