@@ -11,7 +11,7 @@
 				<group name=" " type="SelectAll">
 					<plugins order="Explicit">
 						<plugin name="MusAmbients Disabler">
-							<description>Disables background music when entering faction territories and re-enables it afterward. Also supports emissions, weather, dynamic music and the Crawling Mist and Bloodmoon mods.</description>
+							<description>Disables background music when entering faction territories and re-enables it afterward. Also supports emissions, weather, and the Crawling Mist and Bloodmoon mods.</description>
 							<image path="fomod\splash.png" />
 							<files />
 							<typeDescriptor>
