@@ -3,7 +3,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# === ПУТИ ПРОЕКТА ===
+# Project paths
 ROOT_DIR = Path(__file__).resolve().parent
 SRC_DIR = ROOT_DIR / "src"
 ASSETS_DIR = ROOT_DIR / "assets"
@@ -40,6 +40,10 @@ def collect_files():
 	if not src_gamedata.exists():
 		raise FileNotFoundError(f"Mod dir not found: {src_gamedata}")
 	shutil.copytree(src_gamedata, BUILD_DIR  / "gamedata")
+	# Remove files matching *.bkp.*
+	for item in BUILD_DIR.rglob("*"):
+		if item.is_file() and ".bkp." in item.name:
+			item.unlink()
 
 
 def pack_to_zip(archive_name: str):

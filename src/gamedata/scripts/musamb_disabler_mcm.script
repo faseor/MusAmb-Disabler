@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+-- musamb_disabler_mcm.script
+--[[----------------------------------------------------------------------------
+Helper script for musamb_disabler.
+It loads and saves settings, performs various hooks (including other mods).
+It binds the events of both the script and musamb_disabler.script.
+--]]----------------------------------------------------------------------------
 
 local defaults = {
 	["enable"] = true,
@@ -376,7 +383,7 @@ function on_mcm_load()
 	return {
 		id = "musamb_disabler",
 		sh = true,
-		version = "0.9.b",
+		version = "1.0.0",
 		precondition = { is_1 },
 		output = modpack_text,
 		gr = {

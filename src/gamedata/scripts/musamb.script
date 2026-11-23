@@ -1,17 +1,72 @@
+VERSION = "1.0.0"
+--[===========================================================================[
+================================< DESCRIPTION >================================
+===============================================================================
+
+
+A script for S.T.A.L.K.E.R. Anomaly, providing centralized control of background music. It also allows creating an exclusive access object to background music, which prevents other scripts from changing the ambient. At the same time, it informs the controlling script about the desire of other scripts to change the volume, and the controlling script can determine what to do in this case.
+
+
+===============================================================================
+==============================< PUBLIC INTERFACE >=============================
+===============================================================================
+
+
+Public functions:
+• get() — returns the current volume of the background music.
+• fade_next() — sets a smooth fade to the next command.
+• mute(suppress_event) — mutes background music.
+• unmute(suppress_event) — returns the volume of background music.
+• to_default(suppress_event) — sets the default volume level.
+• set_to(new_volume, suppress_event) — sets a new (temporary) volume level.
+• is_acquired() — checks if exclusive access to background music has been obtained by someone.
+• acquire_exclusive_music_ambient_control(function_pointer) — gets exclusive access.
+• trans_log_volume(volume, is_48db) — converts the input linear volume to logarithmic.
+• trans_linear_volume(volume, is_48db) — converts the input logarithmic volume to linear.
+
+Public constants:
+• VERSION — version of this script.
+• event_name — the name of the event that changes the volume of background music.
+
+Public methods of ExclusiveMusamb:
+• get() — returns the current volume of background music.
+• fade_next() — sets a smooth transition to the next command.
+• mute(suppress_event) — mutes background music.
+• unmute(suppress_event) — returns the volume of background music.
+• to_default(suppress_event) — sets the default volume.
+• set_to(new_volume, suppress_event) — sets a new (temporary) volume level.
+• release_acquire() — releases exclusive access.
+
+
+===============================================================================
+===============================< TECHNICAL INFO >==============================
+===============================================================================
+
+Versioning of musamb is subject to the SemVer 2.0.0 specification published at:
+https://semver.org
+
+Only TABs must be used as indents in this file.
+
+
+===============================================================================
+======================================<>=======================================
+--]===========================================================================]
+
+
 --------------------------------------------------------------------------------
 -- Vars and Constants
 --[[----------------------------------------------------------------------------
 --]]----------------------------------------------------------------------------
-local exclusive_obj = nil
-local ambient_controller = nil
-local set_musamb = nil
-local get_musamb = nil
+
+local exclusive_obj = nil -- exclusive ambient controller
+local ambient_controller = nil -- The core of the script
+local set_musamb = nil -- wrapper function for a console command
+local get_musamb = nil -- wrapper function for a console command
 local get_miliseconds = _G.time_global
 local clamp = _G.clamp
 local is_in_mainmenu = true
 local is_ambient_music_console_execution_hooked = false
 local is_combat_music_ambient_music_control_hooked = false
-local is_ui_options_start_lighting_ui_hooked = false
 local error_msg = "CRITICAL ERROR -> MUSAMB: " ..
 	"Exclusive permissions is released and this object cannot using for changing volume of ambient's music.\n " ..
 	"TIPS: Check execution's logic of your mod. Do not share to another scripts this exclusive object."
@@ -21,8 +76,15 @@ local error_msg = "CRITICAL ERROR -> MUSAMB: " ..
 -- Public interface
 --[[----------------------------------------------------------------------------
 --]]----------------------------------------------------------------------------
+--[[
+The name of the event that changes the volume of background music.
+--]]
 event_name = "on_ambient_music_volume_change"
 
+--[[
+Returns the current volume of background music.
+Returns the number from zero to one.
+--]]
 function get()
 	local result
 	if ambient_controller then
@@ -30,7 +92,7 @@ function get()
 	else
 		result = get_musamb()
 	end
-	if	exclusive_obj then
+	if exclusive_obj then
 		local tmp = exclusive_obj("get", ambient_controller:get_volumes())
 		if type(tmp) == "number" and tmp >= 0 and tmp <= 1 then
 			result = tmp
@@ -39,6 +101,10 @@ function get()
 	return result
 end
 
+--[[
+The following command sets a smooth change.
+It returns nothing.
+--]]
 function fade_next()
 	if exclusive_obj then
 		exclusive_obj("fade", ambient_controller:get_volumes())
@@ -47,6 +113,10 @@ function fade_next()
 	end
 end
 
+--[[
+Mutes background music. If suppress_event == true blocks the event event_name.
+It returns nothing.
+--]]
 function mute(suppress_event)
 	if exclusive_obj then
 		exclusive_obj("mute", suppress_event, ambient_controller:get_volumes())
@@ -55,6 +125,10 @@ function mute(suppress_event)
 	end
 end
 
+--[[
+Returns the volume of background music. If suppress_event == true blocks the event event_name from being sent.
+It returns nothing.
+--]]
 function unmute(suppress_event)
 	if exclusive_obj then
 		exclusive_obj("unmute", suppress_event, ambient_controller:get_volumes())
@@ -63,6 +137,10 @@ function unmute(suppress_event)
 	end
 end
 
+--[[
+Sets the standard volume level. The standard volume level can only be changed by the player (in game settings). If suppress_event == true blocks the event event_name from being sent.
+It returns nothing.
+--]]
 function to_default(suppress_event)
 	if exclusive_obj then
 		exclusive_obj("to_default", suppress_event, ambient_controller:get_volumes())
@@ -71,6 +149,10 @@ function to_default(suppress_event)
 	end
 end
 
+--[[
+Sets a new (temporary) volume level. The previous volume can be restored by calling to_default(). Accepts a numerical parameter from zero to one, setting the volume of background music. If suppress_event == true, the event event_name is blocked.
+It returns nothing.
+--]]
 function set_to(v, suppress_event)
 	if exclusive_obj then
 		exclusive_obj("set_to", v, suppress_event, ambient_controller:get_volumes())
@@ -79,10 +161,24 @@ function set_to(v, suppress_event)
 	end
 end
 
+--[[
+Checks if anyone has exclusive access to background music.
+Returns true if someone is using exclusive access. Otherwise false.
+--]]
 function is_acquired()
 	return exclusive_obj ~= nil
 end
 
+--[[
+It gets exclusive access. It takes a function as a parameter that should track volume changes. The parameters passed to the function are:
+1. The command name (to_default, set_to, mute, etc.)
+2. The value of the command (if any).
+3. The value of suppress_event.
+4. Default volume.
+5. Zero volume.
+6. Preserved volume.
+Returns an ExclusiveMusamb object if there are no exclusive users. Otherwise, returns nil.
+--]]
 function acquire_exclusive_music_ambient_control(obj)
 	if type(obj) ~= "function" then
 		abort("CRITICAL ERROR -> MUSAMB: exclusive object must be a function")
@@ -95,6 +191,10 @@ function acquire_exclusive_music_ambient_control(obj)
 	return ExclusiveMusamb()
 end
 
+--[[
+Converts the input linear volume to logarithmic. The volume parameter is from 0 to 1. If the is_48db parameter is true, the volume is relative to 48 dB. Otherwise, 60 dB.
+Returns the converted volume. Pure function. Not used.
+--]]
 function trans_log_volume(linear_val, is_48db)
 	if type(linear_val) == "number" and linear_val >= 0 and linear_val <= 1 then
 		if linear_val == 0 then return 0.0 end
@@ -105,6 +205,10 @@ function trans_log_volume(linear_val, is_48db)
 	return nil
 end
 
+--[[
+Converts the input logarithmic volume to linear. The parameter volume is from 0 to 1. If the parameter is_48db == true, the volume is converted relative to 48 dB. Otherwise, 60 dB.
+Returns the transformed volume. Pure function. Not used.
+--]]
 function trans_linear_volume(log_val, is_48db)
 	if type(log_val) == "number" and log_val >= 0 and log_val <= 1 then
 		if log_val == 0 then return 0.0 end
@@ -126,40 +230,71 @@ function ExclusiveMusamb:__init()
 	self.correct_state = true
 end
 
+--[[
+Releases exclusive access. After calling this method, all other methods on this object will suspend the game.
+After calling this method, it is recommended to set the variable storing the ExclusiveMusamb object to nil.
+--]]
 function ExclusiveMusamb:release_acquire()
 	self.correct_state = false
 	exclusive_obj = nil
 end
 
+--[[
+Forces the volume state to be updated.
+--]]
 function ExclusiveMusamb:update()
 	ambient_controller:update()
 end
 
+--[[
+The following command sets a smooth change.
+It returns nothing.
+--]]
 function ExclusiveMusamb:fade_next()
 	if not self.correct_state then abort(error_msg) end
 	ambient_controller:fade_next()
 end
 
+--[[
+Returns the current volume of background music.
+Returns a number from zero to one.
+--]]
 function ExclusiveMusamb:get()
 	if not self.correct_state then abort(error_msg) end
 	return ambient_controller:get()
 end
 
+--[[
+Mutes background music. If suppress_event == true blocks the event event_name from being sent.
+It returns nothing.
+--]]
 function ExclusiveMusamb:mute(...)
 	if not self.correct_state then abort(error_msg) end
 	ambient_controller:mute(...)
 end
 
+--[[
+Returns the volume of background music. If suppress_event == true blocks the event event_name from being sent.
+It returns nothing.
+--]]
 function ExclusiveMusamb:unmute(...)
 	if not self.correct_state then abort(error_msg) end
 	ambient_controller:unmute(...)
 end
 
+--[[
+Sets the standard volume level. The standard volume level can only be changed by the player (in game settings). If suppress_event == true blocks the event event_name from being sent.
+It returns nothing.
+--]]
 function ExclusiveMusamb:to_default(...)
 	if not self.correct_state then abort(error_msg) end
 	ambient_controller:to_default(...)
 end
 
+--[[
+Sets a new (temporary) volume level. The previous volume can be restored by calling to_default(). Accepts a numerical parameter from 0 to 1, setting the volume of background music. If suppress_event == true, the event event_name is blocked.
+It returns nothing.
+--]]
 function ExclusiveMusamb:set_to(...)
 	if not self.correct_state then abort(error_msg) end
 	ambient_controller:set_to(...)
@@ -188,6 +323,9 @@ local function actor_on_net_destroy()
 	ambient_controller:to_default()
 end
 
+--[[
+	It captures all console commands. It delays the volume change command, and passes all other console commands through. This feature requires careful handling to avoid breaking the game.
+--]]
 local function hook_ambient_music_console_execution()
 	if is_ambient_music_console_execution_hooked then return end
 	local orig_console = _G.exec_console_cmd
@@ -212,6 +350,9 @@ local function hook_ambient_music_console_execution()
 	is_ambient_music_console_execution_hooked = true
 end
 
+--[[
+	It catches the scripting for dynamic music in the gameplay. Only two scripts for dynamic music are known. If a new script with an unconventional API appears, this function needs to be rewritten for the new script.
+--]]
 local function hook_xrs_dyn_music()
 	if is_combat_music_ambient_music_control_hooked then return end
 	if isDynamicMusicModByOrleon() then
@@ -260,28 +401,12 @@ local function hook_xrs_dyn_music()
 	end
 end
 
-local function hook_vanilla_ui_options()
-	--[[ Patch not work
-	if is_ui_options_start_lighting_ui_hooked then return end
-	if ui_options and type(ui_options.start_lighting_ui) == "function" then
-		local f__start_lighting_ui = ui_options.start_lighting_ui
-		ui_options.start_lighting_ui = function(...)
-			f__start_lighting_ui(...)
-			SendScriptCallback("main_menu_on_quit", ui_main_menu.main_menu)
-			printf("Musamb %s %", "send_event", "main_menu_on_quit")
-		end
-		is_ui_options_start_lighting_ui_hooked = true
-	end
-	--]]
-end
-
 function on_game_start()
 	RegisterScriptCallback("main_menu_on_init", main_menu_on_init)
 	RegisterScriptCallback("main_menu_on_quit", main_menu_on_quit)
 	RegisterScriptCallback("actor_on_net_destroy", actor_on_net_destroy)
 	hook_ambient_music_console_execution()
 	hook_xrs_dyn_music()
-	hook_vanilla_ui_options()
 	AddScriptCallback(event_name)
 	if not ambient_controller then
 		ambient_controller = AmbientMusicController()
